@@ -4,12 +4,10 @@ rust:
 
 script:
   - rustup target add wasm32-unknown-unknown
-#  - cargo install --git https://github.com/alexcrichton/wasm-gc
-  - bash ./setup.sh
+  - bash ./scripts/setup.sh
   - cargo build --release
-  - bash ./static_files.sh
-  - cp ./target/wasm32-unknown-unknown/release/synacor_vm.wasm out/synacor_vm.wasm
-  - bash ./deploy.sh
+  - bash ./scripts/copy_files.sh
+  - bash ./scripts/deploy.sh
 env:
   global:
     - ENCRYPTION_LABEL: "4ad3f5815248"
