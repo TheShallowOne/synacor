@@ -3,6 +3,7 @@ rust:
   - nightly
 
 script:
+  - rustup target add wasm32-unknown-unknown
   - cargo install --git https://github.com/alexcrichton/wasm-gc
   - bash ./setup.sh
   - cargo build --release
