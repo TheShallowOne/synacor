@@ -4,11 +4,11 @@ rust:
 
 script:
   - rustup target add wasm32-unknown-unknown
-  - cargo install --git https://github.com/alexcrichton/wasm-gc
+#  - cargo install --git https://github.com/alexcrichton/wasm-gc
   - bash ./setup.sh
   - cargo build --release
   - bash ./static_files.sh
-  - wasm-gc ./target/wasm32-unknown-unknown/release/synacor_vm.wasm out/synacor_vm.wasm
+  - cp ./target/wasm32-unknown-unknown/release/synacor_vm.wasm out/synacor_vm.wasm
   - bash ./deploy.sh
 env:
   global:

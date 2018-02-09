@@ -1,0 +1,10 @@
+[package]
+name = "synacor-vm"
+version = "0.1.0"
+authors = ["TheShallowOne"]
+
+[dependencies]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
