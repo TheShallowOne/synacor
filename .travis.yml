@@ -3,6 +3,6 @@ language: generic
 script: bash ./deploy.sh
 env:
     global:
-    - ENCRYPTION_LABEN: "0e61fe409c64"
+    - ENCRYPTION_LABEN: "4ad3f5815248"
     - COMMIT_AUTHOR_EMAIL: "TheShallowOne@users.noreply.github.com"
 
