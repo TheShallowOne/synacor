@@ -1,32 +1,53 @@
-use std::mem;
-use std::ffi::CString;
-use std::os::raw::{c_char, c_void};
+#![no_std]
+#![feature(alloc)]
+#![feature(const_fn)]
+#![feature(core_intrinsics)]
+#![feature(global_allocator)]
+#![feature(lang_items)]
 
-mod functions;
-mod helper;
+#[macro_use]
+extern crate alloc;
+extern crate rlibc;
+extern crate wee_alloc;
 
+// Use `wee_alloc` as the global allocator.
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+#[lang = "panic_fmt"]
 #[no_mangle]
-pub extern "C" fn alloc(size: usize) -> *mut c_void {
-    let mut buf = Vec::with_capacity(size);
-    let ptr = buf.as_mut_ptr();
-    mem::forget(buf);
-    return ptr as *mut c_void;
-}
-
-#[no_mangle]
-pub extern "C" fn dealloc_str(ptr: *mut c_char) {
+pub extern "C" fn panic_fmt(_args: ::core::fmt::Arguments, _file: &'static str, _line: u32) -> ! {
+    use core::intrinsics;
     unsafe {
-        let _ = CString::from_raw(ptr);
+        intrinsics::abort();
     }
 }
 
-#[no_mangle]
-pub extern "C" fn sum_bytes(data: *mut c_char) -> *mut c_char {
-    let s = helper::convert_string(data);
+use alloc::String;
 
-    let sum = functions::sum_bytes(s.as_bytes());
-    let r = format!("{}", sum);
+mod helper;
+mod instruction;
+mod js;
+mod machine;
+mod operation;
+pub mod wasm;
 
-    let s = CString::new(r).unwrap();
-    s.into_raw()
+pub struct Machine {
+    detail: machine::MachineDetail,
+}
+
+impl Machine {
+    pub const fn new() -> Machine {
+        Machine {
+            detail: machine::MachineDetail::new(),
+        }
+    }
+
+    pub fn load(&mut self, input: &[u16]) -> Result<(), String> {
+        self.detail.load(input)
+    }
+
+    pub fn execute_current(&mut self) -> Result<bool, String> {
+        self.detail.execute()
+    }
 }

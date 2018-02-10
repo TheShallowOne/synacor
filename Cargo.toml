@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["TheShallowOne"]
 
 [dependencies]
+rlibc = "1.0"
+wee_alloc = "0.1"
 
 [lib]
 path = "src/lib.rs"
