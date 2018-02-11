@@ -4,8 +4,8 @@ use core::slice;
 
 static mut MACHINE: ::Machine = ::Machine::new();
 
-fn to_slice_u16<'a>(ptr: *const u8, len: usize) -> &'a [u16] {
-    unsafe { slice::from_raw_parts(ptr as *const u16, len) }
+fn to_slice<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
+    unsafe { slice::from_raw_parts(ptr, len) }
 }
 
 #[no_mangle]
@@ -15,9 +15,21 @@ pub extern "C" fn load_image(ptr: *mut u8, len: usize) -> bool {
         return false;
     }
 
-    let res = unsafe { MACHINE.load(to_slice_u16(ptr, len)) };
+    let res = unsafe { MACHINE.load_u8(to_slice(ptr, len)) };
     match res {
         Ok(_) => true,
+        Err(s) => {
+            ::js::log(&s);
+            false
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn execute_step() -> bool {
+    let res = unsafe { MACHINE.execute() };
+    match res {
+        Ok(r) => r,
         Err(s) => {
             ::js::log(&s);
             false

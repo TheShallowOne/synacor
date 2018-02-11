@@ -8,6 +8,7 @@ pub trait Operation {
 
 impl Operation for Instruction {
     fn execute(&self, args: &[u16], ma: &mut MachineDetail) -> Result<(), String> {
+        //self.log(args);
         use self::Instruction::*;
         match *self {
             Halt | Noop => {}

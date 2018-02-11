@@ -28,6 +28,41 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    pub fn log(&self, args: &[u16]) {
+        use self::Instruction::*;
+        let mut s = match *self {
+            Halt => String::from("halt"),
+            Set => String::from("set"),
+            Push => String::from("push"),
+            Pop => String::from("pop"),
+            Eq => String::from("eq"),
+            Gt => String::from("gt"),
+            Jmp => String::from("jmp"),
+            Jt => String::from("jt"),
+            Jf => String::from("jf"),
+            Add => String::from("add"),
+            Mul => String::from("mul"),
+            Mod => String::from("mod"),
+            And => String::from("and"),
+            Or => String::from("or"),
+            Not => String::from("not"),
+            Rmem => String::from("rmem"),
+            Wmem => String::from("wmem"),
+            Call => String::from("call"),
+            Ret => String::from("ret"),
+            Out => String::from("out"),
+            In => String::from("in"),
+            Noop => String::from("noop"),
+        };
+
+        for a in args {
+            s += " ";
+            s += &u16_to_string(*a);
+        }
+
+        ::js::log(&s);
+    }
+
     pub fn new(instr: u16) -> Result<Instruction, String> {
         use self::Instruction::*;
         match instr {

@@ -47,7 +47,22 @@ impl Machine {
         self.detail.load(input)
     }
 
-    pub fn execute_current(&mut self) -> Result<bool, String> {
+    pub fn load_u8(&mut self, input: &[u8]) -> Result<(), String> {
+        // little endian
+        let mut data = vec![0; input.len() / 2];
+
+        for (i, byte) in input.iter().enumerate() {
+            let idx = i / 2;
+            let shift = (i % 2) * 8;
+
+            let byte = (*byte as u16) << shift;
+            data[idx] |= byte;
+        }
+
+        self.detail.load(&data)
+    }
+
+    pub fn execute(&mut self) -> Result<bool, String> {
         self.detail.execute()
     }
 }

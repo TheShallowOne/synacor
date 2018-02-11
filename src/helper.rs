@@ -3,14 +3,13 @@ use alloc::{String, Vec};
 pub fn u16_to_string(val: u16) -> String {
     let mut digits = Vec::new();
     let mut val = val;
-    loop {
+    while val > 0 {
         digits.push(digit_to_str(val % 10));
+        val /= 10;
+    }
 
-        if 0 < val {
-            val /= 10;
-        } else {
-            break;
-        }
+    if digits.is_empty() {
+        digits.push('0' as u8);
     }
 
     digits.reverse();

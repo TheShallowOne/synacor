@@ -7,5 +7,6 @@ if [ "$TRAVIS_PULL_REQUEST" != "false" -o "$TRAVIS_BRANCH" != "master" ]; then
     exit 0
 fi
 
-cp static/* out/
-cp ./target/wasm32-unknown-unknown/release/synacor_vm.wasm out/synacor_vm.wasm
+mkdirp -p out/wasm
+cp -rv static/* out/
+cp -v ./target/wasm32-unknown-unknown/release/synacor_vm.wasm out/wasm/synacor_vm.wasm
