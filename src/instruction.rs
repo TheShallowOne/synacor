@@ -105,8 +105,4 @@ impl Instruction {
             Add | And | Eq | Gt | Mod | Mul | Or => 3,
         }
     }
-
-    pub fn end_program(&self) -> bool {
-        Instruction::Halt == *self
-    }
 }

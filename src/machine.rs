@@ -1,4 +1,5 @@
 use alloc::{String, Vec};
+use alloc::vec_deque::VecDeque;
 use helper::u16_to_string;
 use instruction::Instruction;
 use operation::Operation;
@@ -6,63 +7,65 @@ use operation::Operation;
 pub const MEMORY_SIZE: usize = 1 << 15;
 pub const REGISTER_COUNT: usize = 8;
 
-pub struct MachineDetail {
-    memory: Option<Vec<u16>>,
-    registers: Option<Vec<u16>>,
-    stack: Option<Vec<u16>>,
+pub struct Machine {
+    memory: Vec<u16>,
+    registers: Vec<u16>,
+    stack: Vec<u16>,
     pc: usize,
-    initialized: bool,
+    input: VecDeque<u8>,
+    output: VecDeque<u8>,
 }
 
-impl MachineDetail {
-    pub const fn new() -> MachineDetail {
-        MachineDetail {
-            memory: None,
-            registers: None,
-            stack: None,
-            pc: 0,
-            initialized: false,
+impl Machine {
+    pub fn new_u8(input: &[u8]) -> Result<Machine, String> {
+        // little endian
+        let mut data = vec![0; input.len() / 2];
+
+        for (i, byte) in input.iter().enumerate() {
+            let idx = i / 2;
+            let shift = (i % 2) * 8;
+
+            let byte = (*byte as u16) << shift;
+            data[idx] |= byte;
         }
+
+        Self::new(&data)
     }
 
-    pub fn load(&mut self, input: &[u16]) -> Result<(), String> {
+    pub fn new(input: &[u16]) -> Result<Machine, String> {
         if MEMORY_SIZE < input.len() {
             return Err(String::from("Memory exceeds maximum size"));
         }
 
-        self.memory = Some(vec![0; MEMORY_SIZE]);
-        self.registers = Some(vec![0; REGISTER_COUNT]);
+        let mut memory = vec![0; MEMORY_SIZE];
+        let registers = vec![0; REGISTER_COUNT];
 
-        self.memory.as_mut().unwrap()[..input.len()].copy_from_slice(input);
+        memory[..input.len()].copy_from_slice(input);
 
-        self.stack = Some(Vec::new());
-        self.pc = 0;
-        self.initialized = true;
-
-        Ok(())
+        Ok(Machine {
+            memory,
+            registers,
+            stack: Vec::new(),
+            pc: 0,
+            input: VecDeque::new(),
+            output: VecDeque::new(),
+        })
     }
 
-    pub fn execute(&mut self) -> Result<bool, String> {
-        if !self.initialized {
-            return Err(String::from("No program loaded!"));
-        }
-
-        let inst = Instruction::new(self.memory.as_mut().unwrap()[self.pc])?;
+    pub fn execute(&mut self) -> Result<(), ::operation::ExecuteError> {
+        let inst = Instruction::new(self.memory[self.pc])?;
 
         let arg_idx = self.pc + 1;
-        let args =
-            self.memory.as_mut().unwrap()[arg_idx..(arg_idx + inst.argument_count())].to_vec();
+        let args = self.memory[arg_idx..(arg_idx + inst.argument_count())].to_vec();
         self.pc += 1 + inst.argument_count();
 
-        inst.execute(&args, self)?;
-
-        Ok(!inst.end_program())
+        inst.execute(&args, self)
     }
 
     pub fn value(&self, value: u16) -> Result<u16, String> {
         match value {
             0...32767 => Ok(value),
-            32768...32775 => Ok(self.registers.as_ref().unwrap()[(value - 32768) as usize]),
+            32768...32775 => Ok(self.registers[(value - 32768) as usize]),
             _ => Err(String::from("Invalid argument: ") + &u16_to_string(value)),
         }
     }
@@ -73,7 +76,7 @@ impl MachineDetail {
         }
 
         let reg_num = (argument - 32768) as usize;
-        self.registers.as_mut().unwrap()[reg_num] = self.value(value)?;
+        self.registers[reg_num] = self.value(value)?;
 
         Ok(())
     }
@@ -90,11 +93,11 @@ impl MachineDetail {
     }
 
     pub fn stack_push(&mut self, value: u16) {
-        self.stack.as_mut().unwrap().push(value);
+        self.stack.push(value);
     }
 
     pub fn stack_pop(&mut self) -> Result<u16, String> {
-        if let Some(val) = self.stack.as_mut().unwrap().pop() {
+        if let Some(val) = self.stack.pop() {
             Ok(val)
         } else {
             Err(String::from("Empty stack"))
@@ -109,13 +112,13 @@ impl MachineDetail {
 
         let value = self.value(value)?;
 
-        self.memory.as_mut().unwrap()[addr as usize] = value;
+        self.memory[addr as usize] = value;
         Ok(())
     }
 
     pub fn read_memory(&mut self, addr: u16) -> Result<u16, String> {
         let addr = self.get_address(addr)?;
-        Ok(self.memory.as_mut().unwrap()[addr as usize])
+        Ok(self.memory[addr as usize])
     }
 
     fn get_address(&self, addr: u16) -> Result<usize, String> {
@@ -125,5 +128,21 @@ impl MachineDetail {
         } else {
             Err(String::from("Invalid address: ") + &u16_to_string(addr as u16))
         }
+    }
+
+    pub fn push_input(&mut self, val: u8) {
+        self.input.push_back(val);
+    }
+
+    pub fn pop_input(&mut self) -> Option<u8> {
+        self.input.pop_front()
+    }
+
+    pub fn push_output(&mut self, val: u8) {
+        self.output.push_back(val);
+    }
+
+    pub fn pop_output(&mut self) -> Option<u8> {
+        self.output.pop_front()
     }
 }

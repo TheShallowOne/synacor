@@ -1,23 +1,36 @@
 use alloc::String;
+use core::convert::From;
+
 use instruction::Instruction;
-use machine::MachineDetail;
+use machine::Machine;
 
 pub trait Operation {
-    fn execute(&self, args: &[u16], ma: &mut MachineDetail) -> Result<(), String>;
+    fn execute(&self, args: &[u16], ma: &mut Machine) -> Result<(), ExecuteError>;
+}
+
+pub enum ExecuteError {
+    Error(String),
+    NeedInput,
+    Halt,
 }
 
 impl Operation for Instruction {
-    fn execute(&self, args: &[u16], ma: &mut MachineDetail) -> Result<(), String> {
+    fn execute(&self, args: &[u16], ma: &mut Machine) -> Result<(), ExecuteError> {
         //self.log(args);
         use self::Instruction::*;
         match *self {
-            Halt | Noop => {}
+            Noop => {}
+            Halt => return Err(ExecuteError::Halt),
 
             // In out
-            In => unimplemented!(),
+            In => if let Some(v) = ma.pop_input() {
+                ma.set_value(args[0], v as u16)?;
+            } else {
+                return Err(ExecuteError::NeedInput);
+            },
             Out => {
                 let val = ma.value(args[0])? as u8;
-                ::js::output(val);
+                ma.push_output(val);
             }
 
             // Jumps
@@ -73,12 +86,11 @@ impl Operation for Instruction {
                 ma.set_pc(ret_addr)?;
             }
         }
-
         Ok(())
     }
 }
 
-fn comparison<F>(f: F, args: &[u16], ma: &mut MachineDetail) -> Result<(), String>
+fn comparison<F>(f: F, args: &[u16], ma: &mut Machine) -> Result<(), String>
 where
     F: Fn(u16, u16) -> bool,
 {
@@ -90,7 +102,7 @@ where
     Ok(())
 }
 
-fn arithmetic<F>(f: F, args: &[u16], ma: &mut MachineDetail) -> Result<(), String>
+fn arithmetic<F>(f: F, args: &[u16], ma: &mut Machine) -> Result<(), String>
 where
     F: Fn(u16, u16) -> u16,
 {
@@ -100,4 +112,10 @@ where
     ma.set_value(args[0], res)?;
 
     Ok(())
+}
+
+impl From<String> for ExecuteError {
+    fn from(s: String)-> Self {
+        ExecuteError::Error(s)
+    }
 }

@@ -1,8 +1,18 @@
 use alloc::Vec;
 use core::mem;
 use core::slice;
+use operation::ExecuteError;
+use machine::Machine;
 
-static mut MACHINE: ::Machine = ::Machine::new();
+struct State(Option<Machine>);
+
+impl State {
+    const fn new() -> State {
+        State(None)
+    }
+}
+static mut STATE: State = State::new();
+
 
 fn to_slice<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
     unsafe { slice::from_raw_parts(ptr, len) }
@@ -15,9 +25,16 @@ pub extern "C" fn load_image(ptr: *mut u8, len: usize) -> bool {
         return false;
     }
 
-    let res = unsafe { MACHINE.load_u8(to_slice(ptr, len)) };
-    match res {
-        Ok(_) => true,
+    let data = to_slice(ptr, len);
+    let m = Machine::new_u8(data);
+
+    match m {
+        Ok(m) => {
+            unsafe {
+                STATE.0 = Some(m);
+            }
+            true
+        }
         Err(s) => {
             ::js::log(&s);
             false
@@ -27,13 +44,19 @@ pub extern "C" fn load_image(ptr: *mut u8, len: usize) -> bool {
 
 #[no_mangle]
 pub extern "C" fn execute_step() -> bool {
-    let res = unsafe { MACHINE.execute() };
-    match res {
-        Ok(r) => r,
-        Err(s) => {
-            ::js::log(&s);
-            false
-        }
+    let mut s = unsafe { STATE.0.as_mut() };
+
+    match s {
+        Some(ref mut m) => match m.execute() {
+            Ok(_) => true,
+            Err(ExecuteError::Halt) => false,
+            Err(ExecuteError::Error(s)) => {
+                ::js::log(&s);
+                false
+            }
+            Err(ExecuteError::NeedInput) => unimplemented!(),
+        },
+        None => false,
     }
 }
 
