@@ -14,10 +14,11 @@ pub struct Machine {
     pc: usize,
     input: VecDeque<u8>,
     output: VecDeque<u8>,
+    debug: bool,
 }
 
 impl Machine {
-    pub fn new_u8(input: &[u8]) -> Result<Machine, String> {
+    pub fn new_u8(input: &[u8], debug: bool) -> Result<Machine, String> {
         // little endian
         let mut data = vec![0; input.len() / 2];
 
@@ -29,10 +30,10 @@ impl Machine {
             data[idx] |= byte;
         }
 
-        Self::new(&data)
+        Self::new(&data, debug)
     }
 
-    pub fn new(input: &[u16]) -> Result<Machine, String> {
+    pub fn new(input: &[u16], debug: bool) -> Result<Machine, String> {
         if MEMORY_SIZE < input.len() {
             return Err(String::from("Memory exceeds maximum size"));
         }
@@ -49,6 +50,7 @@ impl Machine {
             pc: 0,
             input: VecDeque::new(),
             output: VecDeque::new(),
+            debug,
         })
     }
 
@@ -144,5 +146,9 @@ impl Machine {
 
     pub fn pop_output(&mut self) -> Option<u8> {
         self.output.pop_front()
+    }
+
+    pub fn debug(&self) -> bool {
+        self.debug
     }
 }

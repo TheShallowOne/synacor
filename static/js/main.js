@@ -1,6 +1,12 @@
 document.addEventListener('DOMContentLoaded', function () {
     "use strict";
 
+    // 0: deactivated
+    // 1: normal
+    // 2: verbose
+    // 3: every WASM instruction
+    const DEBUG_LEVEL = 3;
+
     function read_file(file) {
         "use strict";
         return new Promise((resolve, reject) => {
@@ -12,17 +18,27 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    const WASM_EXECUTE = Object.freeze({
+        Error: -1,
+        Ok: 0,
+        Halt: 1,
+        NeedInput: 2,
+        NoImage: 3,
+    });
+
     let context = {
         exports: {},
         loaded: false,
+        last_timestamp: null,
+        bulk_size: 10000,
+        running: false,
 
         fetch_string: function (ptr, len) {
             "use strict";
 
             let buffer_u8 = new Uint8Array(this.exports.memory.buffer, ptr, len);
             const utf8_decoder = new TextDecoder("utf-8");
-            const buffer_utf8 = utf8_decoder.decode(buffer_u8);
-            return buffer_utf8;
+            return utf8_decoder.decode(buffer_u8);
         },
 
         run: async function () {
@@ -36,9 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const instance = module.instance;
             this.exports = instance.exports;
 
-            var input = document.getElementById("run");
-            input.addEventListener("click", this.on_click.bind(this));
-
+            document.getElementById("vm-run").addEventListener("click", this.on_run_click.bind(this));
             document.getElementById("input-form").addEventListener("submit", this.load_form_submit.bind(this));
         },
 
@@ -49,14 +63,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 log: function (ptr, len) {
                     "use strict";
 
-                    var str = context.fetch_string(ptr, len);
+                    let str = context.fetch_string(ptr, len);
                     console.log("WASM: ", str);
                     context.show_log_message(str, "info");
                 },
                 output: function (val) {
                     "use strict";
 
-                    console.log("output: ", val);
+                    const chr = String.fromCharCode(val);
+
+                    if (DEBUG_LEVEL >= 2) {
+                        console.log("output", val, chr);
+                    }
+                    document.getElementById("vm-output").textContent += chr;
                 }
             };
             return {env: env};
@@ -78,11 +97,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         decode_base64_text: function (str) {
             "use strict";
-
-            let enc = new TextEncoder();
             try {
-                const data = atob(str);
-                return enc.encode(data);
+                return Uint8Array.from(atob(str), c => c.charCodeAt(0));
             } catch (e) {
                 console.log(e);
                 return null;
@@ -102,13 +118,17 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         },
 
-        on_click: async function () {
+        on_run_click: async function () {
             "use strict";
 
             if (!this.loaded) {
                 this.show_log_message("No image loaded", "warning");
                 return;
             }
+
+            this.running = true;
+            document.getElementById("vm-run").disabled = true;
+            document.getElementById("vm-status").textContent = "Running";
 
             window.requestAnimationFrame(this.run_loop.bind(this));
 
@@ -122,24 +142,69 @@ document.addEventListener('DOMContentLoaded', function () {
             */
         },
 
-        run_loop: function () {
+        run_loop: function (stamp) {
+            "use strict";
+
+            if (this.last_timestamp) {
+                let diff = stamp - this.last_timestamp;
+                // goal: 60 Hz => 1000 / 60 = 16.666
+
+                if (diff > 17) {
+                    let used_percentage = diff / 16.666;
+                    this.bulk_size = (this.bulk_size / used_percentage) | 0;
+
+                    if (DEBUG_LEVEL >= 1) {
+                        console.log("Used time: ", diff);
+                        console.log("Reducing:  ", this.bulk_size);
+                    }
+                }
+                else {
+                    this.bulk_size = (this.bulk_size * 1.2) | 0;
+
+                    if (DEBUG_LEVEL >= 1) {
+                        console.log("Increase:  ", this.bulk_size);
+                    }
+                }
+            }
+            this.last_timestamp = stamp;
+
             console.time("loop");
 
-            let cont_loop = true;
-            const bulk_size = 10000;
+            let continue_execute = true;
+            let error = false;
 
-            for (let i = 0; i < bulk_size && cont_loop; ++i) {
-                cont_loop = this.exports.execute_step();
+            for (let i = 0; i < this.bulk_size && continue_execute; ++i) {
+                let res = this.exports.execute_step();
+
+                continue_execute = false;
+
+                if (res === WASM_EXECUTE.Ok) {
+                    continue_execute = true;
+                } else if (res === WASM_EXECUTE.NeedInput) {
+                    this.show_log_message("Waiting for input!", "warning");
+                    document.getElementById("vm-status").textContent = "Waiting for input";
+                } else {
+                    document.getElementById("vm-status").textContent = "Ended";
+                    error = res === WASM_EXECUTE.Error;
+                    if (!error) {
+                        this.show_log_message("Finished successfully", "success");
+                    } else {
+                        this.set_log_level("danger");
+                    }
+                }
             }
 
-            if (cont_loop) {
+            this.exports.do_output();
+
+            if (continue_execute) {
                 window.requestAnimationFrame(this.run_loop.bind(this));
-
-            } else {
-                console.log("Ending");
             }
-            console.timeEnd("loop");
-        },
+
+            if (DEBUG_LEVEL >= 2) {
+                console.timeEnd("loop");
+            }
+        }
+        ,
 
         load_image: function (buffer) {
             "use strict";
@@ -152,7 +217,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = new Uint8Array(buffer);
 
             this.loaded = false;
-            console.log("Loading...", data);
+            if (DEBUG_LEVEL >= 1) {
+                console.log("Loading...", data);
+            }
 
             // upload data
             let len = data.length;
@@ -160,18 +227,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
             let memory = new Uint8Array(this.exports.memory.buffer);
             for (let i = 0; i < len; ++i) {
-                memory[ptr+i] = data[i]
+                memory[ptr + i] = data[i]
             }
 
-            if (this.exports.load_image(ptr, len)) {
+            if (this.exports.load_image(ptr, len, DEBUG_LEVEL >= 3)) {
                 this.show_log_message("Loaded image successful", "success");
                 this.loaded = true;
+                this.running = false;
             } else {
                 this.set_log_level("danger");
             }
 
+
+            document.getElementById("btn-show-execute").disabled = !this.loaded;
+            if (this.loaded) {
+                document.getElementById("vm-input").value = "";
+                document.getElementById("vm-run").disabled = false;
+                document.getElementById("vm-status").textContent = "Waiting";
+                document.getElementById("vm-output").textContent = "";
+
+                $('#collapseTwo').collapse('show');
+            } else {
+                $('#collapseTwo').collapse('hide');
+            }
+
             this.exports.dealloc(ptr, len);
-        },
+        }
+        ,
 
         load_form_submit: async function (event) {
             "use strict";
@@ -180,7 +262,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (document.getElementById("input-file").classList.contains("active")) {
                 const files = document.getElementById('upload-image').files;
-                if (1 != files.length) {
+                if (1 !== files.length) {
                     this.show_log_message("You need to select a single file!", "danger");
                     return;
                 }
@@ -196,13 +278,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.load_image(data);
             } else if (document.getElementById("input-load").classList.contains("active")) {
                 this.show_log_message("Not implemented", "danger");
-                return;
                 // remote
             } else {
                 this.show_log_message("Unknown error", "danger");
-                return;
             }
-        },
+        }
+        ,
 
         show_log_message: function (message, level) {
             "use strict";
@@ -212,7 +293,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             this.set_log_level(level);
             el.classList.remove("invisible");
-        },
+        }
+        ,
 
         set_log_level: function (level) {
             "use strict";
@@ -223,15 +305,14 @@ document.addEventListener('DOMContentLoaded', function () {
             el.classList.remove("alert-warning");
             el.classList.remove("alert-danger");
             el.classList.add("alert-" + level);
-        },
+        }
+        ,
 
         hide_log_message: function () {
             "use strict";
 
             document.getElementById("alert").classList.add("invisible");
-        },
-
-        //newString(module, str)
+        }
     };
 
     context.run();

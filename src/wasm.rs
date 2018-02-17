@@ -19,14 +19,14 @@ fn to_slice<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
 }
 
 #[no_mangle]
-pub extern "C" fn load_image(ptr: *mut u8, len: usize) -> bool {
+pub extern "C" fn load_image(ptr: *mut u8, len: usize, debug: bool) -> bool {
     if len % 2 != 0 {
         ::js::log("Not a valid image");
         return false;
     }
 
     let data = to_slice(ptr, len);
-    let m = Machine::new_u8(data);
+    let m = Machine::new_u8(data, debug);
 
     match m {
         Ok(m) => {
@@ -42,21 +42,53 @@ pub extern "C" fn load_image(ptr: *mut u8, len: usize) -> bool {
     }
 }
 
+enum ExecuteResult {
+    Error = -1,
+    Ok = 0,
+    Halt = 1,
+    NeedInput = 2,
+    NoImage = 3,
+}
+
 #[no_mangle]
-pub extern "C" fn execute_step() -> bool {
+pub extern "C" fn execute_step() -> i32 {
     let mut s = unsafe { STATE.0.as_mut() };
 
-    match s {
+    let res = match s {
         Some(ref mut m) => match m.execute() {
-            Ok(_) => true,
-            Err(ExecuteError::Halt) => false,
+            Ok(_) => ExecuteResult::Ok,
+            Err(ExecuteError::Halt) => ExecuteResult::Halt,
             Err(ExecuteError::Error(s)) => {
                 ::js::log(&s);
-                false
+                ExecuteResult::Error
             }
-            Err(ExecuteError::NeedInput) => unimplemented!(),
+            Err(ExecuteError::NeedInput) => ExecuteResult::NeedInput,
         },
-        None => false,
+        None => ExecuteResult::NoImage,
+    };
+    res as i32
+}
+
+#[no_mangle]
+pub extern "C" fn add_input(val: u8) -> bool {
+    let mut s = unsafe { STATE.0.as_mut() };
+
+    if let Some(ref mut m) = s {
+        m.push_input(val);
+        true
+    } else {
+        false
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn do_output() {
+    let mut s = unsafe { STATE.0.as_mut() };
+
+    if let Some(ref mut m) = s {
+        while let Some(c) = m.pop_output() {
+            ::js::output(c);
+        }
     }
 }
 
@@ -74,28 +106,3 @@ pub extern "C" fn dealloc(ptr: *mut u8, cap: usize) {
         let _buf = Vec::from_raw_parts(ptr, 0, cap);
     }
 }
-
-#[no_mangle]
-pub extern "C" fn test_imports() {
-    use js::*;
-    log("Log message");
-    output(123);
-}
-
-/*
-pub fn log(message: &str) {
-    let bytes = message.as_bytes();
-    let count = bytes.len();
-
-    unsafe {
-        let ptr = bytes.as_ptr();
-        detail::log(ptr, count);
-    }
-}
-
-pub fn output(val: u8) {
-    unsafe {
-        detail::output(val);
-    }
-}
-*/

@@ -16,7 +16,10 @@ pub enum ExecuteError {
 
 impl Operation for Instruction {
     fn execute(&self, args: &[u16], ma: &mut Machine) -> Result<(), ExecuteError> {
-        //self.log(args);
+        if ma.debug() {
+            self.log_instruction(ma.pc(), args);
+        }
+
         use self::Instruction::*;
         match *self {
             Noop => {}

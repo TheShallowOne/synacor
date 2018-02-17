@@ -28,9 +28,12 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn log(&self, args: &[u16]) {
+    pub fn log_instruction(&self, pc: usize, args: &[u16]) {
+        // pc was already incremented, revert for output
+        let mut s = u16_to_string((pc - args.len() - 1) as u16);
+        s += ": ";
         use self::Instruction::*;
-        let mut s = match *self {
+        s += &match *self {
             Halt => String::from("halt"),
             Set => String::from("set"),
             Push => String::from("push"),
