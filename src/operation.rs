@@ -29,6 +29,9 @@ impl Operation for Instruction {
             In => if let Some(v) = ma.pop_input() {
                 ma.set_value(args[0], v as u16)?;
             } else {
+                // return PC so the Input get re-executed
+                let reset_pc = ma.pc() - 1 - self.argument_count();
+                ma.set_pc(reset_pc as u16)?;
                 return Err(ExecuteError::NeedInput);
             },
             Out => {
@@ -118,7 +121,7 @@ where
 }
 
 impl From<String> for ExecuteError {
-    fn from(s: String)-> Self {
+    fn from(s: String) -> Self {
         ExecuteError::Error(s)
     }
 }

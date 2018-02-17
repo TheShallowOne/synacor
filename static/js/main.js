@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1: normal
     // 2: verbose
     // 3: every WASM instruction
-    const DEBUG_LEVEL = 3;
+    const DEBUG_LEVEL = 2;
 
     function read_file(file) {
         "use strict";
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
         last_timestamp: null,
         bulk_size: 10000,
         running: false,
+        waiting_for_input: false,
 
         fetch_string: function (ptr, len) {
             "use strict";
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const instance = module.instance;
             this.exports = instance.exports;
 
+            document.getElementById("vm-input").addEventListener("keypress", this.input_key_down.bind(this));
             document.getElementById("vm-run").addEventListener("click", this.on_run_click.bind(this));
             document.getElementById("input-form").addEventListener("submit", this.load_form_submit.bind(this));
         },
@@ -127,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             this.running = true;
+            this.waiting_for_input = false;
             document.getElementById("vm-run").disabled = true;
             document.getElementById("vm-status").textContent = "Running";
 
@@ -166,6 +169,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             }
+            if (this.bulk_size < 1000) {
+                this.bulk_size = 1000;
+            }
+
             this.last_timestamp = stamp;
 
             console.time("loop");
@@ -183,6 +190,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (res === WASM_EXECUTE.NeedInput) {
                     this.show_log_message("Waiting for input!", "warning");
                     document.getElementById("vm-status").textContent = "Waiting for input";
+                    this.waiting_for_input = true;
                 } else {
                     document.getElementById("vm-status").textContent = "Ended";
                     error = res === WASM_EXECUTE.Error;
@@ -203,8 +211,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (DEBUG_LEVEL >= 2) {
                 console.timeEnd("loop");
             }
-        }
-        ,
+        },
 
         load_image: function (buffer) {
             "use strict";
@@ -252,8 +259,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             this.exports.dealloc(ptr, len);
-        }
-        ,
+        },
 
         load_form_submit: async function (event) {
             "use strict";
@@ -282,8 +288,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 this.show_log_message("Unknown error", "danger");
             }
-        }
-        ,
+        },
 
         show_log_message: function (message, level) {
             "use strict";
@@ -293,8 +298,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             this.set_log_level(level);
             el.classList.remove("invisible");
-        }
-        ,
+        },
 
         set_log_level: function (level) {
             "use strict";
@@ -305,13 +309,32 @@ document.addEventListener('DOMContentLoaded', function () {
             el.classList.remove("alert-warning");
             el.classList.remove("alert-danger");
             el.classList.add("alert-" + level);
-        }
-        ,
+        },
 
         hide_log_message: function () {
             "use strict";
 
             document.getElementById("alert").classList.add("invisible");
+        },
+
+        input_key_down: function (e) {
+            if (DEBUG_LEVEL >= 2) {
+                console.log("Input: ", e);
+            }
+
+
+            if (e.keyCode === 13) {
+                this.exports.add_input(10);
+                document.getElementById("vm-input").value = "";
+            } else {
+                this.exports.add_input(e.charCode);
+            }
+
+            // continue if waiting
+            if (this.waiting_for_input) {
+                this.waiting_for_input = false;
+                window.requestAnimationFrame(this.run_loop.bind(this));
+            }
         }
     };
 
