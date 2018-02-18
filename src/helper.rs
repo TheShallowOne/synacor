@@ -9,7 +9,7 @@ pub fn u16_to_string(val: u16) -> String {
     }
 
     if digits.is_empty() {
-        digits.push('0' as u8);
+        digits.push(b'0');
     }
 
     digits.reverse();

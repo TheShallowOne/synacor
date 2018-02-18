@@ -26,7 +26,7 @@ impl Machine {
             let idx = i / 2;
             let shift = (i % 2) * 8;
 
-            let byte = (*byte as u16) << shift;
+            let byte = (u16::from(*byte)) << shift;
             data[idx] |= byte;
         }
 
@@ -66,18 +66,18 @@ impl Machine {
 
     pub fn value(&self, value: u16) -> Result<u16, String> {
         match value {
-            0...32767 => Ok(value),
-            32768...32775 => Ok(self.registers[(value - 32768) as usize]),
+            0...0x7FFF => Ok(value),
+            0x8000...0x8007 => Ok(self.registers[(value - 0x8000) as usize]),
             _ => Err(String::from("Invalid argument: ") + &u16_to_string(value)),
         }
     }
 
     pub fn set_value(&mut self, argument: u16, value: u16) -> Result<(), String> {
-        if argument < 32768 || argument > 32775 {
+        if argument < 0x8000 || argument > 0x8007 {
             return Err(String::from("Invalid register: ") + &u16_to_string(argument));
         }
 
-        let reg_num = (argument - 32768) as usize;
+        let reg_num = (argument - 0x8000) as usize;
         self.registers[reg_num] = self.value(value)?;
 
         Ok(())

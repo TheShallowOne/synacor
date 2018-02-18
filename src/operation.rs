@@ -27,7 +27,7 @@ impl Operation for Instruction {
 
             // In out
             In => if let Some(v) = ma.pop_input() {
-                ma.set_value(args[0], v as u16)?;
+                ma.set_value(args[0], u16::from(v))?;
             } else {
                 // return PC so the Input get re-executed
                 let reset_pc = ma.pc() - 1 - self.argument_count();
@@ -65,8 +65,12 @@ impl Operation for Instruction {
             Wmem => ma.write_memory(args[0], args[1])?,
 
             // Maths
-            Add => arithmetic(|a, b| (a + b) % 32768, args, ma)?,
-            Mul => arithmetic(|a, b| ((a as u32 * b as u32) % 32768) as u16, args, ma)?,
+            Add => arithmetic(|a, b| (a + b) % 0x8000, args, ma)?,
+            Mul => arithmetic(
+                |a, b| ((u32::from(a) * u32::from(b)) % 0x8000) as u16,
+                args,
+                ma,
+            )?,
             Mod => arithmetic(|a, b| a % b, args, ma)?,
             And => arithmetic(|a, b| a & b, args, ma)?,
             Or => arithmetic(|a, b| a | b, args, ma)?,
