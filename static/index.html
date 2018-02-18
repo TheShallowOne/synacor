@@ -98,11 +98,16 @@
             <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordion">
                 <div class="card-body">
                     <div>
-                        <p><label for="vm-input">Input:</label>&nbsp;<input type="input" id="vm-input"></p>
                         <p><input type="button" class="btn btn-primary" value="Run" id="vm-run">&nbsp;<span id="vm-status">Waiting</span></p>
 
                         <p>Output</p>
                         <pre id="vm-output"></pre>
+                    </div>
+                    <div id="input-div">
+                        <p>
+                            <label for="vm-input">Input:</label><br>
+                            <textarea id="vm-input" rows="8" cols="80" readonly></textarea>
+                        </p>
                     </div>
                 </div>
             </div>

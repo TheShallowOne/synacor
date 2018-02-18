@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
             this.exports = instance.exports;
 
             document.getElementById("vm-input").addEventListener("keypress", this.input_key_down.bind(this));
+            document.getElementById("vm-input").addEventListener("paste", this.input_paste.bind(this));
             document.getElementById("vm-run").addEventListener("click", this.on_run_click.bind(this));
             document.getElementById("input-form").addEventListener("submit", this.load_form_submit.bind(this));
         },
@@ -74,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const chr = String.fromCharCode(val);
 
-                    if (DEBUG_LEVEL >= 2) {
+                    if (DEBUG_LEVEL == 2) {
                         console.log("output", val, chr);
                     }
                     document.getElementById("vm-output").textContent += chr;
@@ -202,7 +203,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
+            // check if need to scroll after this
+            const pos = document.documentElement.clientHeight + document.documentElement.scrollTop;
+            const do_scroll = (pos === document.documentElement.scrollHeight);
+
             this.exports.do_output();
+
+            if (do_scroll) {
+                window.scrollTo(0, document.documentElement.scrollHeight);
+            }
 
             if (continue_execute) {
                 window.requestAnimationFrame(this.run_loop.bind(this));
@@ -244,7 +253,6 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 this.set_log_level("danger");
             }
-
 
             document.getElementById("btn-show-execute").disabled = !this.loaded;
             if (this.loaded) {
@@ -317,23 +325,54 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById("alert").classList.add("invisible");
         },
 
-        input_key_down: function (e) {
+        add_input: function (code) {
             if (DEBUG_LEVEL >= 2) {
-                console.log("Input: ", e);
+                console.log("Char: ", code, " (", String.fromCharCode(code), ")");
             }
-
-
-            if (e.keyCode === 13) {
-                this.exports.add_input(10);
-                document.getElementById("vm-input").value = "";
-            } else {
-                this.exports.add_input(e.charCode);
-            }
+            this.exports.add_input(code);
+            let textfield = document.getElementById("vm-input");
+            textfield.value += String.fromCharCode(code);
+            textfield.scrollTo(0, textfield.scrollHeight);
 
             // continue if waiting
             if (this.waiting_for_input) {
                 this.waiting_for_input = false;
                 window.requestAnimationFrame(this.run_loop.bind(this));
+            }
+        },
+
+        input_paste: function (e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            let data = e.clipboardData.getData('Text');
+            if (DEBUG_LEVEL >= 1) {
+                console.log("Paste: ", data);
+            }
+            if (!data) {
+                return;
+            }
+
+            for (let i = 0; i < data.length; i++) {
+                const code = data.charCodeAt(i);
+
+                if (13 === code) {
+                    continue;
+                }
+
+                this.add_input(code);
+            }
+        },
+
+        input_key_down: function (e) {
+            if (DEBUG_LEVEL >= 2) {
+                console.log("Input: ", e);
+            }
+
+            if (e.keyCode === 13) {
+                this.add_input(10);
+            } else {
+                this.add_input(e.charCode);
             }
         }
     };
@@ -341,56 +380,4 @@ document.addEventListener('DOMContentLoaded', function () {
     context.run();
 
     window.ctx = context;
-
-
-    // // partially taken from https://www.hellorust.com
-    // // (https://github.com/badboy/hellorust)
-    // function copyCStr(module, ptr) {
-    //     let orig_ptr = ptr;
-    //     const collectCString = function* () {
-    //         let memory = new Uint8Array(module.memory.buffer);
-    //         while (memory[ptr] !== 0) {
-    //             if (memory[ptr] === undefined) { throw new Error("Tried to read undef mem") }
-    //             yield memory[ptr]
-    //             ptr += 1
-    //         }
-    //     }
-
-    //     const buffer_as_u8 = new Uint8Array(collectCString())
-    //     const utf8Decoder = new TextDecoder("UTF-8");
-    //     const buffer_as_utf8 = utf8Decoder.decode(buffer_as_u8);
-    //     module.dealloc_str(orig_ptr);
-    //     return buffer_as_utf8
-    // }
-
-    // function getStr(module, ptr, len) {
-    //     const getData = function* (ptr, len) {
-    //         let memory = new Uint8Array(module.memory.buffer);
-    //         for (let index = 0; index < len; index++) {
-    //             if (memory[ptr] === undefined) { throw new Error(`Tried to read undef mem at ${ptr}`) }
-    //             yield memory[ptr + index]
-    //         }
-    //     }
-
-    //     const buffer_as_u8 = new Uint8Array(getData(ptr / 8, len / 8));
-    //     const utf8Decoder = new TextDecoder("UTF-8");
-    //     const buffer_as_utf8 = utf8Decoder.decode(buffer_as_u8);
-    //     return buffer_as_utf8;
-    // }
-
-    // function newString(module, str) {
-    //     const utf8Encoder = new TextEncoder("UTF-8");
-    //     let string_buffer = utf8Encoder.encode(str)
-    //     let len = string_buffer.length
-    //     let ptr = module.alloc(len + 1)
-
-    //     let memory = new Uint8Array(module.memory.buffer);
-    //     for (i = 0; i < len; i++) {
-    //         memory[ptr + i] = string_buffer[i]
-    //     }
-
-    //     memory[ptr + len] = 0;
-
-    //     return ptr;
-    // }
 });
