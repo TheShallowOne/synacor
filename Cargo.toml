@@ -5,7 +5,7 @@ authors = ["TheShallowOne"]
 
 [dependencies]
 rlibc = "1.0"
-wee_alloc = "0.1"
+wee_alloc = { git = "https://github.com/fitzgen/wee_alloc" }
 
 [lib]
 path = "src/lib.rs"
